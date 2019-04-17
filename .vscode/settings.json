@@ -4,5 +4,6 @@
         "**/*.mod.*": true,
         "**/*.o": true,
         "**/*.symvers": true
-    }
+    },
+    "git.alwaysShowStagedChangesResourceGroup": true,
 }
