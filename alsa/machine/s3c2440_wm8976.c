@@ -9,27 +9,22 @@
 #include <sound/soc.h>
 //#include <sound/s3c24xx_uda134x.h>
 #include <plat/regs-iis.h>
-#include "s3c24xx-i2s.h"
+
 
 static void s3c24xx_wm8976_release (struct device *dev)
 {
 
 }
-static struct platform_device s3c24xx_wm8976_snd_device
-{
+static struct platform_device s3c24xx_wm8976_snd_device = {
 	.name = "soc-audio",
 	.id = -1,
 	.dev = {
 		.release = s3c24xx_wm8976_release,
 	}
-}
+};
 
-static int s3c24xx_wm8976_hw_params(struct snd_pcm_substream *substream,struct snd_pcm_hw_params *params)
-{
-	return 0;
-}
 static struct snd_soc_ops s3c24xx_wm8976_ops = {
-	.hw_params = s3c24xx_wm8976_hw_params,
+
 };
 
 static struct snd_soc_dai_link s3c24xx_wm8976_dai_link = {
@@ -52,8 +47,8 @@ static struct snd_soc_card snd_soc_s3c24xx_wm8976 = {
 static int s3c2440_wm8976_init(void)
 {
     platform_set_drvdata(&s3c24xx_wm8976_snd_device, &snd_soc_s3c24xx_wm8976);//设置私有数据
-	platform_device_register(&s3c24xx_wm8976_snd_device);
-  return 0;
+  	platform_device_register(&s3c24xx_wm8976_snd_device);
+    return 0;
 }
 
 static void s3c2440_wm8976_exit(void)

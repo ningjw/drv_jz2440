@@ -7,4 +7,7 @@ clean:
 	make -C $(KERN_DIR) M=`pwd` modules clean
 	rm -rf modules.order
 
-obj-m	+= alsa.o
+obj-m   += machine/
+obj-m   += platform/
+obj-m   += codec/
+
