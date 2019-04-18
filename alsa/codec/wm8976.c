@@ -160,9 +160,13 @@ static inline unsigned int wm8976_read_reg_cache(struct snd_soc_codec *codec,uns
 static int wm8976_write_reg(struct snd_soc_codec *codec, unsigned int reg, unsigned int value)
 {
 	u8 *cache = codec->reg_cache;
+
+	//先保存
 	if(reg >= UDA1341_REG_NUM){
 		return -1;
 	}
+	cache[reg] = value;
+	//再写入硬件
 	if(reg >= UDA1341_EA000 && reg <= UDA1341_EA110){
 		s3c2440_l3_write(UDA1341_DATA0_ADDR,wm8976_reg_addr[reg] | UDA1341_EXTADDR_PREFIX);
 		s3c2440_l3_write(UDA1341_DATA0_ADDR,value | UDA1341_EXTDATA_PREFIX);
@@ -185,8 +189,49 @@ void wm8976_init_regs(struct snd_soc_codec *codec)
 	wm8976_write_reg(codec, UDA1341_DATA10, DATA2_DEEMP_NONE &~(DATA2_MUTE) );
 }
 
+//获得音量信息，比如最小值，最大值
+int wm8976_info_volsw(struct snd_kcontrol *kcontrol,struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 2;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 63;
+	return 0;
+}
+
+//获得当前音量值
+int wm8976_get_volsw(struct snd_kcontrol *kcontrol,struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+
+	ucontrol->value.integer.value[1] =
+	ucontrol->value.integer.value[0] = 63 - wm8976_read_reg_cache(codec, UDA1341_DATA00);
+
+	return 0;
+}
+
+//设置音量
+int wm8976_put_volsw(struct snd_kcontrol *kcontrol,struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	unsigned int val = 63 - ucontrol->value.integer.value[0];
+	
+	wm8976_write_reg(codec, UDA1341_DATA00, val);
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new wm8976_vol_controls = {
+	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, 
+	.name = "Master Playback Volume",
+	.info = wm8976_info_volsw, 
+	.get = wm8976_get_volsw,
+	.put = wm8976_put_volsw,
+};
+
 static int wm8976_soc_probe(struct snd_soc_codec *codec)
 {
+	snd_soc_add_codec_controls(codec, &wm8976_vol_controls, 1);
 	wm8976_init_regs(codec);
 	return 0;
 }
@@ -236,21 +281,20 @@ static struct snd_soc_dai_driver wm8976_dai = {
 	.ops = &wm8976_dai_ops,
 };
 
-
-static void wm8976_dev_release (struct device *dev)
-{
-
-}
-
 static int wm8976_probe(struct platform_device * pdev)
 {
-    return snd_soc_register_codec(&pdev->dev,&soc_codec_dev_wm8976, &wm8976_dai, 1);
+	return snd_soc_register_codec(&pdev->dev,&soc_codec_dev_wm8976, &wm8976_dai, 1);
 }
 
 int wm8976_remove(struct platform_device *pdev)
 {
     snd_soc_unregister_codec(&pdev->dev);
 	return 0;
+}
+
+static void wm8976_dev_release (struct device *dev)
+{
+
 }
 
 static struct platform_device wm8976_device = {
@@ -270,7 +314,7 @@ struct platform_driver wm8976_drv = {
 };
 
 
-static int wm8976_init(void)
+static int __init wm8976_init(void)
 {
 	gpbcon = ioremap(0x56000010,4);
 	gpbdat = ioremap(0x56000014,4);
@@ -281,13 +325,12 @@ static int wm8976_init(void)
 
 static void wm8976_exit(void)
 {
-	iounmap(gpbcon);
-	iounmap(gpbdat);
 	platform_device_unregister(&wm8976_device);
     platform_driver_unregister(&wm8976_drv);
+	iounmap(gpbcon);
+	iounmap(gpbdat);
 }
 
 module_init(wm8976_init);
 mudule_exit(wm8976_exit);
-
-
+MODULE_LICENSE("GPL");

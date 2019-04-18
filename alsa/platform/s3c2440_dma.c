@@ -169,13 +169,7 @@ static int s3c2440_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 
 static snd_pcm_uframes_t s3c2440_dma_pointer(struct snd_pcm_substream *substream)
 {
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	unsigned long res = dma_info.addr_ofs;
-	if (res >= snd_pcm_lib_buffer_bytes(substream)) {
-		if (res == snd_pcm_lib_buffer_bytes(substream))
-			res = 0;
-	}
-	return bytes_to_frames(substream->runtime, res);
+	return bytes_to_frames(substream->runtime, dma_info.addr_ofs);
 }
 
 static int s3c2440_dma_close(struct snd_pcm_substream *substream)

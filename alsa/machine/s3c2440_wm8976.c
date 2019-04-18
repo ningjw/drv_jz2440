@@ -44,14 +44,14 @@ static struct snd_soc_card snd_soc_s3c24xx_wm8976 = {
 	.num_links = 1,
 };
 
-static int s3c2440_wm8976_init(void)
+static int __init s3c2440_wm8976_init(void)
 {
     platform_set_drvdata(&s3c24xx_wm8976_snd_device, &snd_soc_s3c24xx_wm8976);//设置私有数据
   	platform_device_register(&s3c24xx_wm8976_snd_device);
     return 0;
 }
 
-static void s3c2440_wm8976_exit(void)
+static void __exit s3c2440_wm8976_exit(void)
 {
 	platform_device_unregister(&s3c24xx_wm8976_snd_device);
 }
