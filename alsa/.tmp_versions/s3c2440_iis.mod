@@ -1,0 +1,2 @@
+/home/ningjw/linux/drv_jz2440/alsa/platform/s3c2440_iis.ko
+/home/ningjw/linux/drv_jz2440/alsa/platform/s3c2440_iis.o

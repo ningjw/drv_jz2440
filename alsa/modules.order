@@ -1,0 +1,4 @@
+kernel//home/ningjw/linux/drv_jz2440/alsa/machine/s3c2440_wm8976.ko
+kernel//home/ningjw/linux/drv_jz2440/alsa/platform/s3c2440_dma.ko
+kernel//home/ningjw/linux/drv_jz2440/alsa/platform/s3c2440_iis.ko
+kernel//home/ningjw/linux/drv_jz2440/alsa/codec/wm8976.ko
