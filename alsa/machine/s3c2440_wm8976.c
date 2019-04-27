@@ -58,3 +58,4 @@ static void __exit s3c2440_wm8976_exit(void)
 
 module_init(s3c2440_wm8976_init);
 mudule_exit(s3c2440_wm8976_exit);
+MODULE_LICENSE("GPL");

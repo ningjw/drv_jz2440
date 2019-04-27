@@ -280,3 +280,4 @@ static void s3c2440_dma_exit(void)
 
 module_init(s3c2440_dma_init);
 mudule_exit(s3c2440_dma_exit);
+MODULE_LICENSE("GPL");

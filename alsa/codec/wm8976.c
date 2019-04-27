@@ -14,29 +14,9 @@
 #include <sound/uda134x.h>
 #include <asm/io.h>
 
-#define STAT0_SC_384FS (1 << 4)
-#define STAT0_DC_FILTER (1 << 0)
-#define STAT1_DAC_ON (1 << 0) /* DAC powered */
-#define DATA0_VOLUME(x) (x)
-#define DATA1_BASS(x) ((x) << 2)
-#define DATA1_TREBLE(x) ((x))
-#define DATA2_DEEMP_NONE (0x0 << 3)
-#define DATA2_MUTE (0x1 << 2)
+/* WM8976 registers */
 
-/* UDA1341 registers */
-#define UDA1341_DATA00 0
-#define UDA1341_DATA01 1
-#define UDA1341_DATA10 2
-#define UDA1341_EA000  3
-#define UDA1341_EA001  4
-#define UDA1341_EA010  5
-#define UDA1341_EA100  6
-#define UDA1341_EA101  7
-#define UDA1341_EA110  8
-#define UDA1341_DATA1  9
-#define UDA1341_STATUS0 10
-#define UDA1341_STATUS1 11
-#define UDA1341_REG_NUM 12
+#define WM8976_REG_NUM  58
 
 #define UDA1341_L3ADDR	5
 #define UDA1341_DATA0_ADDR	((UDA1341_L3ADDR << 2) | 0)
@@ -46,36 +26,18 @@
 #define UDA1341_EXTADDR_PREFIX	0xC0
 #define UDA1341_EXTDATA_PREFIX	0xE0
 
-#define UDA134X_RATES SNDRV_PCM_RATE_8000_48000
-#define UDA134X_FORMATS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | \
-		SNDRV_PCM_FMTBIT_S18_3LE | SNDRV_PCM_FMTBIT_S20_3LE)
+#define WM8976_RATES SNDRV_PCM_RATE_8000_48000
+#define WM8976_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | \
+	        SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE)
 
-/* 所有寄存器的默认值 */
-static const char wm8976_reg[UDA1341_REG_NUM] = {
-    0x00, 0x40, 0x80,/* DATA0 */
-	0x04, 0x04, 0x04, 0x00, 0x00, 0x00,/* Extended address registers */
-    0x00,           /* data1 */
-    0x00, 0x83,     /* status regs */
-};
+/* 所有寄存器的默认值 :7bit地址，9bit数据*/
+static const short wm8976_reg[WM8976_REG_NUM]={};
 
-static const char wm8976_reg_addr[UDA1341_REG_NUM] = {
-    UDA1341_DATA0_ADDR, UDA1341_DATA0_ADDR, UDA1341_DATA0_ADDR,
-    0, 1, 2, 4, 5, 6,
-    UDA1341_DATA1_ADDR,
-    UDA1341_STATUS_ADDR, UDA1341_STATUS_ADDR
-};
-
-static const char wm8976_data_bit[UDA1341_REG_NUM] = {
-    0, (1<<6), (1<<7),
-    0, 0, 0, 0, 0, 0,
-    0,
-    0, (1<<7),
-};
 
 static volatile unsigned int *gpbdat;
 static volatile unsigned int *gpbcon;
 
-static void set_mod(int val)
+static void set_csb(int val)
 {
     if (val){
         *gpbdat |= (1<<2);
@@ -102,45 +64,6 @@ static void set_dat(int val)
     }
 }
 
-/*
- * Send one byte of data to the chip.  Data is latched into the chip on
- * the rising edge of the clock.
- */
-static void sendbyte(unsigned int byte)
-{
-	int i;
-
-	for (i = 0; i < 8; i++) {
-		set_clk(0);
-		udelay(1);
-		set_dat(byte & 1);
-		udelay(1);
-		set_clk(1);
-		udelay(1);
-		byte >>= 1;
-	}
-}
-
-static void s3c2440_l3_write(u8 reg, u8 data)
-{
-	set_clk(1);
-	set_dat(1);
-	set_mod(1);
-	udelay(1);
-
-	set_mod(0);
-	udelay(1);
-	sendbyte(reg);
-	udelay(1);
-
-	set_mod(1);
-	sendbyte(data);
-
-	set_clk(1);
-	set_dat(1);
-	set_mod(0);
-}
-
 
 /*
  * The codec has no support for reading its registers except for peak level...
@@ -149,7 +72,7 @@ static inline unsigned int wm8976_read_reg_cache(struct snd_soc_codec *codec,uns
 {
 	u8 *cache = codec->reg_cache;
 
-	if (reg >= UDA1341_REG_NUM)
+	if (reg >= WM8976_REG_NUM)
 		return -1;
 	return cache[reg];
 }
@@ -160,19 +83,40 @@ static inline unsigned int wm8976_read_reg_cache(struct snd_soc_codec *codec,uns
 static int wm8976_write_reg(struct snd_soc_codec *codec, unsigned int reg, unsigned int value)
 {
 	u8 *cache = codec->reg_cache;
+	int i;
+	unsigned short val = (reg << 9) | (value & 0x1ff);
 
 	//先保存
-	if(reg >= UDA1341_REG_NUM){
+	if(reg >= WM8976_REG_NUM){
 		return -1;
 	}
 	cache[reg] = value;
-	//再写入硬件
-	if(reg >= UDA1341_EA000 && reg <= UDA1341_EA110){
-		s3c2440_l3_write(UDA1341_DATA0_ADDR,wm8976_reg_addr[reg] | UDA1341_EXTADDR_PREFIX);
-		s3c2440_l3_write(UDA1341_DATA0_ADDR,value | UDA1341_EXTDATA_PREFIX);
-	}else{
-		s3c2440_l3_write(wm8976_reg_addr[reg], value| wm8976_data_bit[reg]);
+	/* 再写入硬件 */
+    set_csb(1);
+    set_dat(1);
+    set_clk(1);
+
+	for (i = 0; i < 16; i++){
+		if (val & (1<<15)){
+            set_clk(0);
+            set_dat(1);
+			udelay(1);
+            set_clk(1);
+		}else{
+            set_clk(0);
+            set_dat(0);
+			udelay(1);
+            set_clk(1);
+		}
+
+		val = val << 1;
 	}
+
+    set_csb(0);
+	udelay(1);
+    set_csb(1);
+    set_dat(1);
+    set_clk(1);
 
 	return 0;
 }
@@ -182,11 +126,24 @@ void wm8976_init_regs(struct snd_soc_codec *codec)
 	*gpbcon &= ~((3<<4)|(3<<6)|(3<<8));
 	*gpbcon |= (1<<4)|(1<<6)|(1<<8);
 
-	wm8976_write_reg(codec, UDA1341_STATUS0, 0x40 | STAT0_SC_384FS | STAT0_DC_FILTER);// reset uda1341
-	wm8976_write_reg(codec, UDA1341_STATUS1, STAT1_DAC_ON);//启动DAC
-	wm8976_write_reg(codec, UDA1341_DATA00, DATA0_VOLUME(0x0) );// maximum volume
-	wm8976_write_reg(codec, UDA1341_DATA01, DATA1_BASS(0)| DATA1_TREBLE(0) );
-	wm8976_write_reg(codec, UDA1341_DATA10, DATA2_DEEMP_NONE &~(DATA2_MUTE) );
+	/* software reset */
+	wm8976_write_reg(codec, 0, 0);
+
+	/* OUT2的左/右声道打开
+	 * 左/右通道输出混音打开
+	 * 左/右DAC打开
+	 */
+	wm8976_write_reg(codec, 0x3, 0x6f);
+	
+	wm8976_write_reg(codec, 0x1, 0x1f);//biasen,BUFIOEN.VMIDSEL=11b  
+	wm8976_write_reg(codec, 0x2, 0x185);//ROUT1EN LOUT1EN, inpu PGA enable ,ADC enable
+
+	wm8976_write_reg(codec, 0x6, 0x0);//SYSCLK=MCLK  
+	wm8976_write_reg(codec, 0x4, 0x10);//16bit 		
+	wm8976_write_reg(codec, 0x2B,0x10);//BTL OUTPUT  
+	wm8976_write_reg(codec, 0x9, 0x50);//Jack detect enable  
+	wm8976_write_reg(codec, 0xD, 0x21);//Jack detect  
+	wm8976_write_reg(codec, 0x7, 0x01);//Jack detect 
 }
 
 //获得音量信息，比如最小值，最大值
@@ -204,8 +161,8 @@ int wm8976_get_volsw(struct snd_kcontrol *kcontrol,struct snd_ctl_elem_value *uc
 {
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 
-	ucontrol->value.integer.value[1] =
-	ucontrol->value.integer.value[0] = 63 - wm8976_read_reg_cache(codec, UDA1341_DATA00);
+	ucontrol->value.integer.value[1] = snd_soc_read(codec, 53) & 0x3f;
+	ucontrol->value.integer.value[0] = snd_soc_read(codec, 52) & 0x3f;
 
 	return 0;
 }
@@ -214,9 +171,13 @@ int wm8976_get_volsw(struct snd_kcontrol *kcontrol,struct snd_ctl_elem_value *uc
 int wm8976_put_volsw(struct snd_kcontrol *kcontrol,struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	unsigned int val = 63 - ucontrol->value.integer.value[0];
+	unsigned int val;
 	
-	wm8976_write_reg(codec, UDA1341_DATA00, val);
+	val = ucontrol->value.integer.value[0];
+	snd_soc_write(codec, 52, (1<<8)|val);
+
+	val = ucontrol->value.integer.value[1];
+    snd_soc_write(codec, 53, (1<<8)|val);
 
 	return 0;
 }
@@ -240,9 +201,9 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8976 = {
 	.probe =        wm8976_soc_probe,
 	//寄存器不支持读操作，所以用一段缓存保存寄存器值，每次写寄存器的同时写该缓存。
 	.reg_cache_size = sizeof(wm8976_reg),//保存寄存器的缓存有多大
-	.reg_word_size = sizeof(u8),    //每个寄存器长度
+	.reg_word_size = sizeof(u16),    //每个寄存器长度为2字节
 	.reg_cache_default = wm8976_reg,//默认值保存在哪里
-	.reg_cache_step = 1,
+	.reg_cache_step = 2,
 	.read = wm8976_read_reg_cache,//读寄存器
 	.write = wm8976_write_reg,        //写寄存器
 };
@@ -266,16 +227,16 @@ static struct snd_soc_dai_driver wm8976_dai = {
 		.stream_name = "Playback",
 		.channels_min = 1,
 		.channels_max = 2,
-		.rates = UDA134X_RATES,//采样率
-		.formats = UDA134X_FORMATS,//格式
+		.rates = WM8976_RATES,//采样率
+		.formats = WM8976_FORMATS,//格式
 	},
 	/* capture capabilities */
 	.capture = {
 		.stream_name = "Capture",
 		.channels_min = 1,
 		.channels_max = 2,
-		.rates = UDA134X_RATES,
-		.formats = UDA134X_FORMATS,
+		.rates = WM8976_RATES,
+		.formats = WM8976_FORMATS,
 	},
 	/* pcm operations */
 	.ops = &wm8976_dai_ops,

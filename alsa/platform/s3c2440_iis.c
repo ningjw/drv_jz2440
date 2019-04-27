@@ -31,7 +31,7 @@ static void s3c2440_iis_start(void)
 
 static void s3c2440_iis_stop(void)
 {
-	iis_regs->iiscon &= 1;
+	iis_regs->iiscon &= ~1;
 }
 
 static int s3c2440_i2s_hw_params(struct snd_pcm_substream *substream,
@@ -105,6 +105,7 @@ static int s3c2440_i2s_trigger(struct snd_pcm_substream *substream, int cmd,stru
 		s3c2440_iis_stop();//停止
 		break;
 	default:
+		s3c2440_iis_stop();//停止
 		ret = -EINVAL;
 		break;
 	}
@@ -193,3 +194,4 @@ static void s3c2440_iis_exit(void)
 
 module_init(s3c2440_iis_init);
 mudule_exit(s3c2440_iis_exit);
+MODULE_LICENSE("GPL");
